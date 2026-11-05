@@ -201,13 +201,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-                  );
+                  ),
                 }),
               ],
             ),
           : selectedTab == 1
-    ? ? const FootballAnalysisScreen()
-    : : Center(
+    ? const FootballAnalysisScreen()
+    : Center(
         child: Text(
           selectedTab == 2
               ? 'Statistika dolazi uskoro'
