@@ -278,6 +278,3 @@ class FootballRating {
     return 'Slaba forma';
   }
 }
-  }
-}
-
