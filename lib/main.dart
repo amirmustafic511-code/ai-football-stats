@@ -246,6 +246,37 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+
+
+
+    // AI FOOTBALL STATS - VLASTITI RATING SISTEM
+
+class FootballRating {
+  static double calculate({
+    required double form,
+    required double attack,
+    required double defense,
+    required double homeAway,
+    required double consistency,
+  }) {
+    final rating =
+        form * 0.30 +
+        attack * 0.25 +
+        defense * 0.25 +
+        homeAway * 0.10 +
+        consistency * 0.10;
+
+    return rating.clamp(0.0, 100.0).toDouble();
+  }
+
+  static String describe(double rating) {
+    if (rating >= 85) return 'Izvanredna forma';
+    if (rating >= 70) return 'Vrlo dobra forma';
+    if (rating >= 55) return 'Dobra forma';
+    if (rating >= 40) return 'Prosječna forma';
+    return 'Slaba forma';
+  }
+}
   }
 }
 
