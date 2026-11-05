@@ -205,19 +205,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 }),
               ],
             )
-          : Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  selectedTab == 1
-                      ? 'AI Football Stats - vlastita analiza ekipa'
-                      : selectedTab == 2
-                          ? 'Statistika dolazi uskoro'
-                          : 'Tvoj profil dolazi uskoro',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 22),
-                ),
-              ),
+          : selectedTab == 1
+    ? const FootballAnalysisScreen()
+    : Center(
+        child: Text(
+          selectedTab == 2
+              ? 'Statistika dolazi uskoro'
+              : 'Tvoj profil dolazi uskoro',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 22),
+        ),
+      ),
             ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedTab,
@@ -276,5 +274,159 @@ class FootballRating {
     if (rating >= 55) return 'Dobra forma';
     if (rating >= 40) return 'Prosječna forma';
     return 'Slaba forma';
+  }
+}
+class FootballAnalysisScreen extends StatefulWidget {
+  const FootballAnalysisScreen({super.key});
+
+  @override
+  State<FootballAnalysisScreen> createState() =>
+      _FootballAnalysisScreenState();
+}
+
+class _FootballAnalysisScreenState
+    extends State<FootballAnalysisScreen> {
+  final Map<String, List<double>> teams = {
+    'Barcelona': [85, 90, 75, 80],
+    'Real Madrid': [88, 87, 82, 85],
+    'Arsenal': [82, 84, 86, 80],
+    'Liverpool': [84, 88, 78, 82],
+    'Bayern Munich': [87, 91, 79, 84],
+    'Inter': [83, 82, 89, 85],
+  };
+
+  String home = 'Barcelona';
+  String away = 'Real Madrid';
+
+  double score(String team, bool isHome) {
+    final values = teams[team]!;
+    return FootballRating.calculate(
+      form: values[0],
+      attack: values[1],
+      defense: values[2],
+      homeAway: isHome ? 65 : 50,
+      consistency: values[3],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final homeScore = score(home, true);
+    final awayScore = score(away, false);
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const Text(
+          'AI analiza utakmice',
+          style: TextStyle(
+            fontSize: 25,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'DEMO: ocjene su testne, nisu stvarna statistika.',
+          style: TextStyle(color: Colors.amber),
+        ),
+        const SizedBox(height: 24),
+        const Text('Domaća ekipa'),
+        DropdownButton<String>(
+          isExpanded: true,
+          value: home,
+          items: teams.keys.map((team) {
+            return DropdownMenuItem(
+              value: team,
+              child: Text(team),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => home = value);
+            }
+          },
+        ),
+        const SizedBox(height: 20),
+        const Text('Gostujuća ekipa'),
+        DropdownButton<String>(
+          isExpanded: true,
+          value: away,
+          items: teams.keys.map((team) {
+            return DropdownMenuItem(
+              value: team,
+              child: Text(team),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => away = value);
+            }
+          },
+        ),
+        const SizedBox(height: 30),
+        const Text(
+          'Poređenje ekipa',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 15),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Text(
+                  '$home: ${homeScore.toStringAsFixed(1)}/100',
+                  style: const TextStyle(fontSize: 19),
+                ),
+                const SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: homeScore / 100,
+                  minHeight: 12,
+                ),
+                const SizedBox(height: 25),
+                Text(
+                  '$away: ${awayScore.toStringAsFixed(1)}/100',
+                  style: const TextStyle(fontSize: 19),
+                ),
+                const SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: awayScore / 100,
+                  minHeight: 12,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 25),
+        const Text(
+          'Zaključak naše analize',
+          style: TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          home == away
+              ? 'Izaberi dvije različite ekipe.'
+              : (homeScore - awayScore).abs() < 3
+                  ? 'Ekipe imaju vrlo slične ukupne ocjene.'
+                  : homeScore > awayScore
+                      ? '$home ima bolju ukupnu ocjenu '
+                        'prema našem modelu.'
+                      : '$away ima bolju ukupnu ocjenu '
+                        'prema našem modelu.',
+          style: const TextStyle(fontSize: 17),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Ovo nije prognoza rezultata utakmice.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ],
+    );
   }
 }
