@@ -210,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(24),
                 child: Text(
                   selectedTab == 1
-                      ? 'AI analize dolaze uskoro'
+                      ? 'AI Football Stats - vlastita analiza ekipa'
                       : selectedTab == 2
                           ? 'Statistika dolazi uskoro'
                           : 'Tvoj profil dolazi uskoro',
