@@ -87,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'AI FOOTBALL STATS',
+          'FOOTBALL INTELLIGENCE AI'
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
