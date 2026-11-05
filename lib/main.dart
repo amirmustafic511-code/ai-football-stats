@@ -204,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 }),
               ],
-            ),
+            )
           : selectedTab == 1
     ? const FootballAnalysisScreen()
     : Center(
