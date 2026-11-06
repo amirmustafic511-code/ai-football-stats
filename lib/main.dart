@@ -246,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
             child: DropdownButtonFormField<String>(
-              value: league.file,
+              initialValue: league.file,
               decoration: const InputDecoration(
                 labelText: 'Izaberi ligu',
                 border: OutlineInputBorder(),
