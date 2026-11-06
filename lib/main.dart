@@ -216,6 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
           style: const TextStyle(fontSize: 22),
         ),
       ),
+    ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedTab,
         onDestinationSelected: (index) {
