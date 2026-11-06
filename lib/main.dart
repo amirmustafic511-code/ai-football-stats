@@ -11,7 +11,7 @@ class FootballApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: title: 'Football Intelligence AI',
+      title: 'Football Intelligence AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -72,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-        'Football Intelligence AI',
+          'FOOTBALL INTELLIGENCE AI',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -437,3 +437,4 @@ class _FootballAnalysisScreenState
   }
 }
 
+          
