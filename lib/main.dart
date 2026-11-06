@@ -1,7 +1,9 @@
 
 import 'package:flutter/material.dart';
 
-void main() => runApp(const FootballApp());
+void main() {
+  runApp(const FootballApp());
+}
 
 class FootballApp extends StatelessWidget {
   const FootballApp({super.key});
@@ -9,7 +11,7 @@ class FootballApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Football Intelligence AI',
+      title: 'AI Football Stats',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -25,6 +27,14 @@ class FootballApp extends StatelessWidget {
   }
 }
 
+class FootballMatch {
+  final String league;
+  final String home;
+  final String away;
+
+  const FootballMatch(this.league, this.home, this.away);
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -36,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int selectedTab = 0;
   String selectedLeague = 'Sve lige';
 
-  final leagues = [
+  static const List<String> leagues = [
     'Sve lige',
     'Premier League',
     'La Liga',
@@ -49,51 +59,27 @@ class _HomeScreenState extends State<HomeScreen> {
     'Ostale evropske lige',
   ];
 
-  final matches = [
-    {
-      'league': 'Premier League',
-      'home': 'Arsenal',
-      'away': 'Liverpool',
-    },
-    {
-      'league': 'La Liga',
-      'home': 'Barcelona',
-      'away': 'Real Madrid',
-    },
-    {
-      'league': 'Serie A',
-      'home': 'Inter',
-      'away': 'Juventus',
-    },
-    {
-      'league': 'Bundesliga',
-      'home': 'Bayern',
-      'away': 'Dortmund',
-    },
-    {
-      'league': 'Premijer liga BiH',
-      'home': 'Sarajevo',
-      'away': 'Željezničar',
-    },
+  static const List<FootballMatch> matches = [
+    FootballMatch('Premier League', 'Arsenal', 'Liverpool'),
+    FootballMatch('La Liga', 'Barcelona', 'Real Madrid'),
+    FootballMatch('Serie A', 'Inter', 'Juventus'),
+    FootballMatch('Bundesliga', 'Bayern', 'Dortmund'),
+    FootballMatch('Premijer liga BiH', 'Sarajevo', 'Željezničar'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final visibleMatches = matches.where((match) {
-      return selectedLeague == 'Sve lige' ||
-          match['league'] == selectedLeague;
-    }).toList();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'FOOTBALL INTELLIGENCE AI',
+          'AI FOOTBALL STATS',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: const Color(0xFF17232D),
         actions: [
           IconButton(
+            icon: const Icon(Icons.search),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -101,122 +87,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
-            icon: const Icon(Icons.search),
           ),
         ],
       ),
-      body: selectedTab == 0
-          ? ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text(
-                  'Dobrodošli u svijet fudbalske statistike',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Statistika, rezultati i AI analize '
-                  'na jednom mjestu.',
-                  style: TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Izaberi ligu',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: leagues.map((league) {
-                    return ChoiceChip(
-                      label: Text(league),
-                      selected: selectedLeague == league,
-                      onSelected: (_) {
-                        setState(() {
-                          selectedLeague = league;
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 28),
-                const Text(
-                  'Pregled utakmica',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'DEMO PODACI - nisu stvarne utakmice',
-                  style: TextStyle(
-                    color: Colors.amberAccent,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (visibleMatches.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      'Utakmice za ovu ligu bit će '
-                      'dostupne nakon povezivanja podataka.',
-                    ),
-                  ),
-                ...visibleMatches.map((match) {
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    color: const Color(0xFF1D2B36),
-                    child: ListTile(
-                      leading: const Icon(
-                        Icons.sports_soccer,
-                        color: Color(0xFF00D68F),
-                      ),
-                      title: Text(
-                        '${match['home']} - ${match['away']}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: Text(match['league']!),
-                      trailing: const Icon(
-                        Icons.chevron_right,
-                      ),
-                      onTap: () {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Detaljna statistika dolazi uskoro',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                }),
-              ],
+      body: IndexedStack(
+        index: selectedTab,
+        children: [
+          _buildHomePage(),
+          const FootballAnalysisScreen(),
+          const Center(
+            child: Text(
+              'Statistika dolazi uskoro',
+              textAlign: TextAlign.center,
             ),
-          : selectedTab == 1
-    ? const FootballAnalysisScreen()
-    : Center(
-        child: Text(
-          selectedTab == 2
-              ? 'Statistika dolazi uskoro'
-              : 'Tvoj profil dolazi uskoro',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 22),
-        ),
+          ),
+          const Center(
+            child: Text(
+              'Tvoj profil dolazi uskoro',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
-    ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedTab,
         onDestinationSelected: (index) {
@@ -244,11 +136,111 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
 
+  Widget _buildHomePage() {
+    final visibleMatches = matches.where((match) {
+      return selectedLeague == 'Sve lige' ||
+          match.league == selectedLeague;
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Dobrodošli u svijet fudbalske statistike',
+          style: TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Statistika, rezultati i AI analize na jednom mjestu.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Izaberi ligu',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: leagues.map((league) {
+            return ChoiceChip(
+              label: Text(league),
+              selected: selectedLeague == league,
+              onSelected: (_) {
+                setState(() {
+                  selectedLeague = league;
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 28),
+        const Text(
+          'Pregled utakmica',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'DEMO PODACI - nisu stvarne utakmice',
+          style: TextStyle(
+            color: Colors.amberAccent,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (visibleMatches.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'Utakmice za ovu ligu bit će dostupne '
+              'nakon povezivanja podataka.',
+            ),
+          ),
+        ...visibleMatches.map((match) {
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            color: const Color(0xFF1D2B36),
+            child: ListTile(
+              leading: const Icon(
+                Icons.sports_soccer,
+                color: Color(0xFF00D68F),
+              ),
+              title: Text(
+                '${match.home} - ${match.away}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(match.league),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Detaljna statistika dolazi uskoro',
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        }),
+      ],
+    );
   }
 }
-
-    // AI FOOTBALL STATS - VLASTITI RATING SISTEM
 
 class FootballRating {
   static double calculate({
@@ -276,6 +268,7 @@ class FootballRating {
     return 'Slaba forma';
   }
 }
+
 class FootballAnalysisScreen extends StatefulWidget {
   const FootballAnalysisScreen({super.key});
 
@@ -300,6 +293,7 @@ class _FootballAnalysisScreenState
 
   double score(String team, bool isHome) {
     final values = teams[team]!;
+
     return FootballRating.calculate(
       form: values[0],
       attack: values[1],
@@ -335,14 +329,16 @@ class _FootballAnalysisScreenState
           isExpanded: true,
           value: home,
           items: teams.keys.map((team) {
-            return DropdownMenuItem(
+            return DropdownMenuItem<String>(
               value: team,
               child: Text(team),
             );
           }).toList(),
           onChanged: (value) {
             if (value != null) {
-              setState(() => home = value);
+              setState(() {
+                home = value;
+              });
             }
           },
         ),
@@ -352,14 +348,16 @@ class _FootballAnalysisScreenState
           isExpanded: true,
           value: away,
           items: teams.keys.map((team) {
-            return DropdownMenuItem(
+            return DropdownMenuItem<String>(
               value: team,
               child: Text(team),
             );
           }).toList(),
           onChanged: (value) {
             if (value != null) {
-              setState(() => away = value);
+              setState(() {
+                away = value;
+              });
             }
           },
         ),
@@ -410,15 +408,7 @@ class _FootballAnalysisScreenState
         ),
         const SizedBox(height: 12),
         Text(
-          home == away
-              ? 'Izaberi dvije različite ekipe.'
-              : (homeScore - awayScore).abs() < 3
-                  ? 'Ekipe imaju vrlo slične ukupne ocjene.'
-                  : homeScore > awayScore
-                      ? '$home ima bolju ukupnu ocjenu '
-                        'prema našem modelu.'
-                      : '$away ima bolju ukupnu ocjenu '
-                        'prema našem modelu.',
+          _conclusion(homeScore, awayScore),
           style: const TextStyle(fontSize: 17),
         ),
         const SizedBox(height: 20),
@@ -429,4 +419,21 @@ class _FootballAnalysisScreenState
       ],
     );
   }
+
+  String _conclusion(double homeScore, double awayScore) {
+    if (home == away) {
+      return 'Izaberi dvije različite ekipe.';
+    }
+
+    if ((homeScore - awayScore).abs() < 3) {
+      return 'Ekipe imaju vrlo slične ukupne ocjene.';
+    }
+
+    if (homeScore > awayScore) {
+      return '$home ima bolju ukupnu ocjenu prema našem modelu.';
+    }
+
+    return '$away ima bolju ukupnu ocjenu prema našem modelu.';
+  }
 }
+
