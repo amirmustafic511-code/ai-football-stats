@@ -1,608 +1,299 @@
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'ai_predictions_screen.dart';
-void main() => runApp(const FootballApp());
+import 'package:flutter/services.dart';
 
-class FootballApp extends StatelessWidget {
-  const FootballApp({super.key});
+const Color kBg = Color(0xFF08131F);
+const Color kPanel = Color(0xFF172839);
+const Color kMint = Color(0xFF38E49B);
+const Color kSoft = Color(0xFFB8C7D2);
+
+const String kServer =
+    'https://football-intelligence-api.football-intelligence-ai.workers.dev';
+
+void main() => runApp(const FootballIntelligenceApp());
+
+class FootballIntelligenceApp extends StatelessWidget {
+  const FootballIntelligenceApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Football Intelligence AI',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Football Intelligence AI',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: kBg,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: kMint,
           brightness: Brightness.dark,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF00D68F),
-            brightness: Brightness.dark,
-          ),
-          scaffoldBackgroundColor: const Color(0xFF101820),
-          useMaterial3: true,
+          surface: kBg,
         ),
-        home: const AiPredictionsScreen(),
-      );
-}
-
-class Match {
-  final String home, away, date;
-  final int? homeGoals, awayGoals;
-
-  const Match(
-    this.home,
-    this.away,
-    this.date,
-    this.homeGoals,
-    this.awayGoals,
-  );
-
-  bool get played => homeGoals != null && awayGoals != null;
-
-  factory Match.fromJson(Map<String, dynamic> json) {
-    final score = json['score'];
-    dynamic ft;
-
-    if (score is Map) ft = score['ft'];
-    if (score is List) ft = score;
-
-    int? h, a;
-
-    if (ft is List &&
-        ft.length >= 2 &&
-        ft[0] is num &&
-        ft[1] is num) {
-      h = (ft[0] as num).toInt();
-      a = (ft[1] as num).toInt();
-    }
-
-    return Match(
-      (json['team1'] ?? '').toString(),
-      (json['team2'] ?? '').toString(),
-      (json['date'] ?? '').toString(),
-      h,
-      a,
+      ),
+      home: const DashboardPage(),
     );
   }
 }
 
-class TeamRow {
+class LeagueChoice {
+  final String code;
   final String name;
 
-  int played = 0;
-  int won = 0;
-  int drawn = 0;
-  int lost = 0;
-  int gf = 0;
-  int ga = 0;
-
-  TeamRow(this.name);
-
-  int get points => won * 3 + drawn;
-  int get difference => gf - ga;
+  const LeagueChoice(this.code, this.name);
 }
 
-class League {
-  final String name;
-  final String file;
+const List<LeagueChoice> leagues = [
+  LeagueChoice('PL', 'Premier League'),
+  LeagueChoice('PD', 'La Liga'),
+  LeagueChoice('SA', 'Serie A'),
+  LeagueChoice('BL1', 'Bundesliga'),
+  LeagueChoice('FL1', 'Ligue 1'),
+  LeagueChoice('CL', 'Liga prvaka'),
+  LeagueChoice('PPL', 'Portugal'),
+  LeagueChoice('ELC', 'Championship'),
+];
 
-  const League(this.name, this.file);
-}
+Future<Map<String, dynamic>> getJson(String path) async {
+  final client = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 15);
 
-class FootballData {
-  static const leagues = [
-    League('Premier League', 'en.1.json'),
-    League('La Liga', 'es.1.json'),
-    League('Serie A', 'it.1.json'),
-    League('Bundesliga', 'de.1.json'),
-    League('Ligue 1', 'fr.1.json'),
-  ];
+  try {
+    final request =
+        await client.getUrl(Uri.parse('$kServer$path'));
 
-  static Future<List<Match>> load(String file) async {
-    final source =
-        'https://raw.githubusercontent.com/openfootball/football.json/master/2026-27/$file';
+    final response = await request.close().timeout(
+      const Duration(seconds: 20),
+    );
 
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15);
+    final raw = await utf8.decoder.bind(response).join();
+    final decoded = jsonDecode(raw);
 
-    try {
-      final request = await client.getUrl(Uri.parse(source));
-      final response = await request.close();
-
-      if (response.statusCode != 200) {
-        throw Exception(
-          'Izvor podataka nije dostupan (${response.statusCode}).',
-        );
-      }
-
-      final body = await response.transform(utf8.decoder).join();
-      final data = jsonDecode(body) as Map<String, dynamic>;
-      final entries = data['matches'] as List<dynamic>;
-
-      final matches = entries
-          .map(
-            (item) => Match.fromJson(
-              Map<String, dynamic>.from(item as Map),
-            ),
-          )
-          .where((m) => m.home.isNotEmpty && m.away.isNotEmpty)
-          .toList();
-
-      matches.sort((a, b) => a.date.compareTo(b.date));
-
-      return matches;
-    } finally {
-      client.close(force: true);
-    }
-  }
-
-  static List<TeamRow> table(List<Match> matches) {
-    final rows = <String, TeamRow>{};
-
-    for (final match in matches) {
-      final home = rows.putIfAbsent(
-        match.home,
-        () => TeamRow(match.home),
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Server nije poslao ispravan odgovor.',
       );
-
-      final away = rows.putIfAbsent(
-        match.away,
-        () => TeamRow(match.away),
-      );
-
-      if (!match.played) continue;
-
-      final hg = match.homeGoals!;
-      final ag = match.awayGoals!;
-
-      home.played++;
-      away.played++;
-
-      home.gf += hg;
-      home.ga += ag;
-
-      away.gf += ag;
-      away.ga += hg;
-
-      if (hg > ag) {
-        home.won++;
-        away.lost++;
-      } else if (hg < ag) {
-        away.won++;
-        home.lost++;
-      } else {
-        home.drawn++;
-        away.drawn++;
-      }
     }
 
-    final result = rows.values.toList();
+    if (response.statusCode != 200 ||
+        decoded['error'] != null) {
+      throw Exception(
+        decoded['error'] ?? 'HTTP ${response.statusCode}',
+      );
+    }
 
-    result.sort((a, b) {
-      final p = b.points.compareTo(a.points);
-      if (p != 0) return p;
-
-      final d = b.difference.compareTo(a.difference);
-      if (d != 0) return d;
-
-      final g = b.gf.compareTo(a.gf);
-
-      return g != 0 ? g : a.name.compareTo(b.name);
-    });
-
-    return result;
+    return decoded;
+  } finally {
+    client.close(force: true);
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+Map<String, dynamic> asMap(dynamic input) {
+  if (input is Map<String, dynamic>) return input;
+  return <String, dynamic>{};
+}
+
+List<Map<String, dynamic>> asMaps(dynamic input) {
+  if (input is! List) return [];
+
+  return input
+      .whereType<Map>()
+      .map((item) => Map<String, dynamic>.from(item))
+      .toList();
+}
+
+String displayDate(dynamic input) {
+  final date = DateTime.tryParse('$input')?.toLocal();
+
+  if (date == null) return 'Termin nije potvrđen';
+
+  String n(int v) => v.toString().padLeft(2, '0');
+
+  return '${n(date.day)}.${n(date.month)}.${date.year}. • '
+      '${n(date.hour)}:${n(date.minute)}';
+}
+
+String percent(dynamic n) =>
+    n is num ? '${n.round()}%' : '—';
+
+String number(dynamic n) =>
+    n is num ? n.toStringAsFixed(2) : '—';
+
+Widget sectionCard({
+  required String title,
+  required Widget child,
+}) {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(17),
+    decoration: BoxDecoration(
+      color: kPanel,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: const Color(0xFF243A4C),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: kMint,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 14),
+        child,
+      ],
+    ),
+  );
+}
+
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<DashboardPage> createState() =>
+      _DashboardPageState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  int selectedTab = 0;
+class _DashboardPageState extends State<DashboardPage> {
+  int tab = 0;
+  String code = 'PL';
 
-  League league = FootballData.leagues.first;
+  late Future<Map<String, dynamic>> leagueFuture;
+  late Future<Map<String, dynamic>> newsFuture;
 
-  late Future<List<Match>> futureMatches;
+  Timer? refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    futureMatches = FootballData.load(league.file);
+    _reload();
+
+    refreshTimer = Timer.periodic(
+      const Duration(hours: 1),
+      (_) {
+        if (mounted) setState(_reload);
+      },
+    );
   }
 
-  void refresh() {
+  void _reload() {
+    leagueFuture = getJson(
+      '/api/league?code=$code',
+    );
+    newsFuture = getJson('/api/news');
+  }
+
+  void _changeLeague(String next) {
+    if (next == code) return;
+
     setState(() {
-      futureMatches = FootballData.load(league.file);
+      code = next;
+      leagueFuture = getJson(
+        '/api/league?code=$code',
+      );
     });
   }
 
+  Future<void> _refresh() async {
+    setState(_reload);
+
+    try {
+      await leagueFuture;
+    } catch (_) {
+      // Greska se prikazuje na ekranu.
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'FOOTBALL INTELLIGENCE AI',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 17,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF17232D),
-        actions: [
-          IconButton(
-            tooltip: 'Osvježi podatke',
-            icon: const Icon(Icons.refresh),
-            onPressed: refresh,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-            child: DropdownButtonFormField<String>(
-              initialValue: league.file,
-              decoration: const InputDecoration(
-                labelText: 'Izaberi ligu',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              items: FootballData.leagues.map((l) {
-                return DropdownMenuItem<String>(
-                  value: l.file,
-                  child: Text(l.name),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value == null) return;
-
-                setState(() {
-                  league = FootballData.leagues.firstWhere(
-                    (l) => l.file == value,
-                  );
-
-                  futureMatches = FootballData.load(league.file);
-                });
-              },
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<Match>>(
-              future: futureMatches,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState !=
-                    ConnectionState.done) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return ListView(
-                    children: [
-                      const SizedBox(height: 90),
-                      const Icon(
-                        Icons.cloud_off_outlined,
-                        size: 46,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Podaci nisu dostupni za ovu ligu.',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          '${snapshot.error}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white60,
-                          ),
-                        ),
-                      ),
-                      Center(
-                        child: ElevatedButton(
-                          onPressed: refresh,
-                          child: const Text('Pokušaj ponovo'),
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                final matches = snapshot.data ?? [];
-                final table = FootballData.table(matches);
-
-                return IndexedStack(
-                  index: selectedTab,
-                  children: [
-                    _matches(matches),
-                    _analysis(matches, table),
-                    _table(table),
-                    _info(),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedTab,
-        onDestinationSelected: (i) {
-          setState(() {
-            selectedTab = i;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            label: 'Utakmice',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome),
-            label: 'Analiza',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart),
-            label: 'Tabela',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.info_outline),
-            label: 'Info',
-          ),
-        ],
-      ),
-    );
+  void dispose() {
+    refreshTimer?.cancel();
+    super.dispose();
   }
 
-  Widget _notice() {
-    return const Padding(
-      padding: EdgeInsets.only(bottom: 14),
-      child: Text(
-        'OpenFootball • 2026/27 • podaci mogu kasniti, nisu uživo.',
-        style: TextStyle(
-          color: Colors.amberAccent,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _matches(List<Match> matches) {
-    final now = DateTime.now();
-
-    final today =
-        '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
-
-    final upcoming = matches
-        .where(
-          (m) => !m.played && m.date.compareTo(today) >= 0,
-        )
-        .take(20);
-
-    final recent = matches
-        .where((m) => m.played)
-        .toList()
-        .reversed
-        .take(20);
-
-    final selected = [...upcoming, ...recent];
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        refresh();
-
-        try {
-          await futureMatches;
-        } catch (_) {}
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            league.name,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _notice(),
-          const Text(
-            'Raspored i posljednji dostupni rezultati',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (selected.isEmpty)
-            const Text(
-              'Nema dostupnih utakmica za ovu sezonu.',
-            ),
-          ...selected.map((m) {
-            return Card(
-              color: const Color(0xFF1D2B36),
-              child: ListTile(
-                leading: const Icon(
-                  Icons.sports_soccer,
-                  color: Color(0xFF00D68F),
-                ),
-                title: Text('${m.home} – ${m.away}'),
-                subtitle: Text(m.date),
-                trailing: Text(
-                  m.played
-                      ? '${m.homeGoals}:${m.awayGoals}'
-                      : '– : –',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _table(List<TeamRow> rows) {
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        Text(
-          'Tabela: ${league.name}',
-          style: const TextStyle(
-            fontSize: 23,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _notice(),
-        const Text(
-          'U = utakmice  P = pobjede  N = neriješeno  '
-          'I = porazi  GR = gol-razlika  B = bodovi',
-          style: TextStyle(fontSize: 12),
-        ),
-        const SizedBox(height: 10),
-        if (rows.isEmpty)
-          const Text('Tabela nije dostupna.'),
-        ...rows.asMap().entries.map((entry) {
-          final r = entry.value;
-
-          return Card(
-            child: ListTile(
-              dense: true,
-              title: Text('${entry.key + 1}. ${r.name}'),
-              subtitle: Text(
-                'U ${r.played}  P ${r.won}  N ${r.drawn}  '
-                'I ${r.lost}  GR ${r.difference >= 0 ? '+' : ''}${r.difference}',
-              ),
-              trailing: Text(
-                '${r.points} B',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _analysis(
-    List<Match> matches,
-    List<TeamRow> rows,
-  ) {
-    final played = matches.where((m) => m.played).length;
-
-    final totalGoals = matches
-        .where((m) => m.played)
-        .fold<int>(
-          0,
-          (sum, m) => sum + m.homeGoals! + m.awayGoals!,
-        );
-
-    final homeWins = matches.where((m) {
-      return m.played && m.homeGoals! > m.awayGoals!;
-    }).length;
-
-    final draws = matches.where((m) {
-      return m.played && m.homeGoals == m.awayGoals;
-    }).length;
-
-    final awayWins = played - homeWins - draws;
-
-    final avg = played == 0 ? 0.0 : totalGoals / played;
-
-    final leader = rows.isEmpty ? null : rows.first;
-
-    final strongestAttack = [...rows]
-      ..sort((a, b) => b.gf.compareTo(a.gf));
-
-    return ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        Text(
-          'Statistička analiza: ${league.name}',
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _notice(),
-        const Text(
-          'Automatska analiza stvarnih dostupnih rezultata. '
-          'Ovo je statistički model, a ne generativni AI.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        const SizedBox(height: 20),
-        _metric('Odigrane utakmice', '$played'),
-        _metric('Ukupno golova', '$totalGoals'),
-        _metric(
-          'Prosječno golova po utakmici',
-          avg.toStringAsFixed(2),
-        ),
-        _metric('Pobjede domaćina', '$homeWins'),
-        _metric('Neriješeno', '$draws'),
-        _metric('Pobjede gostiju', '$awayWins'),
-        if (leader != null)
-          _metric(
-            'Prvoplasirana ekipa',
-            '${leader.name} (${leader.points} bodova)',
-          ),
-        if (strongestAttack.isNotEmpty)
-          _metric(
-            'Najviše postignutih golova',
-            '${strongestAttack.first.name} '
-                '(${strongestAttack.first.gf})',
-          ),
-        const SizedBox(height: 16),
-        const Text(
-          'Napomena: analiza zavisi od potpunosti i ažurnosti izvora. '
-          'Ne predstavlja prognozu niti savjet za klađenje.',
-          style: TextStyle(
-            color: Colors.amberAccent,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _metric(String title, String value) {
-    return Card(
-      color: const Color(0xFF1D2B36),
-      child: Padding(
+  Widget _leagueChooser() {
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 14,
         ),
-        child: Row(
+        separatorBuilder: (_, unused) =>
+            const SizedBox(width: 8),
+        itemCount: leagues.length,
+        itemBuilder: (context, index) {
+          final l = leagues[index];
+          final active = l.code == code;
+
+          return ChoiceChip(
+            label: Text(l.name),
+            selected: active,
+            onSelected: (_) => _changeLeague(l.code),
+            selectedColor: kMint,
+            labelStyle: TextStyle(
+              color: active ? kBg : Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+            backgroundColor: kPanel,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(13),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _loading() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(60),
+        child: CircularProgressIndicator(
+          color: kMint,
+        ),
+      ),
+    );
+  }
+
+  Widget _error(Object? error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(child: Text(title)),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF00D68F),
-                ),
+            const Icon(
+              Icons.wifi_off,
+              size: 40,
+              color: kMint,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Podaci trenutno nisu dostupni.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: kSoft),
+            ),
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed: () => setState(_reload),
+              child: const Text('Pokušaj ponovo'),
             ),
           ],
         ),
@@ -610,42 +301,865 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _info() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: const [
-        Text(
-          'Football Intelligence AI',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
+  Widget _leagueBody() {
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        _leagueChooser(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: leagueFuture,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData &&
+                  !snapshot.hasError) {
+                return _loading();
+              }
+
+              if (snapshot.hasError) {
+                return _error(snapshot.error);
+              }
+
+              final data = snapshot.data ?? {};
+              final matches = asMaps(data['matches']);
+
+              return RefreshIndicator(
+                color: kMint,
+                onRefresh: _refresh,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _summaryHeader(data, matches),
+
+                    if (tab == 2)
+                      _statisticsOverview(data, matches),
+
+                    if (tab != 2) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        tab == 0
+                            ? 'Naredne utakmice'
+                            : 'Sve prognoze',
+                        style: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      if (matches.isEmpty)
+                        sectionCard(
+                          title: 'Trenutno nema utakmica',
+                          child: Text(
+                            '${data['note'] ?? 'Nema dostupnog rasporeda.'}',
+                            style: const TextStyle(
+                              color: kSoft,
+                            ),
+                          ),
+                        ),
+
+                      ...matches.map(
+                        (m) => _matchTile(m),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Football data provided by the Football-Data.org API',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: kSoft,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Europa liga i Premijer liga BiH: dodatni izvor podataka tek treba povezati.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: kSoft,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              );
+            },
           ),
         ),
-        SizedBox(height: 14),
-        Text(
-          'Podaci: OpenFootball (CC0, javno dostupni).',
+      ],
+    );
+  }
+
+  Widget _summaryHeader(
+    Map<String, dynamic> data,
+    List<Map<String, dynamic>> matches,
+  ) {
+    final league = asMap(data['league']);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(23),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF134333),
+            Color(0xFF142638),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        SizedBox(height: 10),
-        Text(
-          'Aplikacija preuzima podatke prilikom otvaranja '
-          'i na dugme za osvježavanje. Ne traži API ključ.',
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                color: kMint,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'FOOTBALL INTELLIGENCE AI',
+                style: TextStyle(
+                  color: kMint,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${league['name'] ?? 'Liga'}',
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${matches.length} narednih utakmica • '
+            '${data['finishedMatches'] ?? 0} odigranih za analizu',
+            style: const TextStyle(color: kSoft),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Posljednje ažuriranje: '
+            '${displayDate(data['updatedAt'])}',
+            style: const TextStyle(
+              color: kSoft,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 13),
+          const Text(
+            'Naše statističke prognoze • bez LIVE semafora',
+            style: TextStyle(
+              fontSize: 12,
+              color: kMint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _matchTile(Map<String, dynamic> m) {
+    final p = asMap(m['prediction']);
+    final result = asMap(p['resultPercent']);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: kPanel,
+        borderRadius: BorderRadius.circular(19),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(19),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MatchDetailPage(
+                  match: m,
+                  league: leagues.firstWhere(
+                    (l) => l.code == code,
+                  ).name,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(17),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayDate(m['date']),
+                  style: const TextStyle(
+                    color: kSoft,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${m['home']}  –  ${m['away']}',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                if (p.isNotEmpty)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _miniPercent(
+                          '1',
+                          result['home'],
+                        ),
+                      ),
+                      Expanded(
+                        child: _miniPercent(
+                          'X',
+                          result['draw'],
+                        ),
+                      ),
+                      Expanded(
+                        child: _miniPercent(
+                          '2',
+                          result['away'],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: kMint,
+                      ),
+                    ],
+                  )
+                else
+                  const Text(
+                    'Nedovoljno podataka za pouzdanu procjenu',
+                    style: TextStyle(
+                      color: kSoft,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-        SizedBox(height: 10),
+      ),
+    );
+  }
+
+  Widget _miniPercent(
+    String label,
+    dynamic value,
+  ) {
+    return Column(
+      children: [
         Text(
-          'Rezultati nisu uživo i mogu biti nepotpuni. '
-          'Tabela je izračunata iz dostupnih rezultata, '
-          'bez posebnih ligaških pravila i kaznenih bodova.',
+          label,
+          style: const TextStyle(
+            color: kSoft,
+            fontSize: 12,
+          ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 3),
         Text(
-          'Liga prvaka, Europa liga i Premijer liga BiH '
-          'još nisu povezane jer izvor nije potvrđen.',
-        ),
-        SizedBox(height: 10),
-        Text(
-          'Pretplate i korisnički računi još nisu uključeni.',
+          percent(value),
+          style: const TextStyle(
+            color: kMint,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _statisticsOverview(
+    Map<String, dynamic> data,
+    List<Map<String, dynamic>> matches,
+  ) {
+    if (matches.isEmpty) {
+      return sectionCard(
+        title: 'Statistika',
+        child: const Text(
+          'Nema dostupnih utakmica.',
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        const SizedBox(height: 14),
+        sectionCard(
+          title: 'Statistika lige',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Odigrane utakmice: ${data['finishedMatches']}',
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Naredne utakmice: ${matches.length}',
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Odaberi utakmicu za formu, napad i odbranu.',
+                style: TextStyle(color: kSoft),
+              ),
+            ],
+          ),
+        ),
+        ...matches.map(_matchTile),
+      ],
+    );
+  }
+
+  Widget _newsBody() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: newsFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData &&
+            !snapshot.hasError) {
+          return _loading();
+        }
+
+        if (snapshot.hasError) {
+          return _error(snapshot.error);
+        }
+
+        final data = snapshot.data ?? {};
+        final articles = asMaps(data['articles']);
+
+        return RefreshIndicator(
+          color: kMint,
+          onRefresh: () async {
+            setState(() {
+              newsFuture = getJson('/api/news');
+            });
+
+            try {
+              await newsFuture;
+            } catch (_) {
+              // Greska se prikazuje na ekranu.
+            }
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text(
+                'Najnovije fudbalske vijesti',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              if (articles.isEmpty)
+                sectionCard(
+                  title: 'Izvor vijesti nije povezan',
+                  child: Text(
+                    '${data['message'] ?? 'Vijesti nisu dostupne.'}\n\n'
+                    'Za automatske vijesti treba dozvoljen, '
+                    'licenciran izvor. '
+                    'Ne prikazujemo izmišljene naslove.',
+                    style: const TextStyle(
+                      color: kSoft,
+                    ),
+                  ),
+                ),
+
+              ...articles.map(
+                (a) => sectionCard(
+                  title: '${a['source'] ?? 'Izvor'}',
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (a['title'] ?? '').toString(),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      Text(
+                        (a['description'] ?? '').toString(),
+                        style: const TextStyle(
+                          color: kSoft,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      Text(
+                        displayDate(a['publishedAt']),
+                        style: const TextStyle(
+                          color: kSoft,
+                          fontSize: 12,
+                        ),
+                      ),
+
+                      TextButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(
+                            ClipboardData(
+                              text: '${a['url'] ?? ''}',
+                            ),
+                          );
+
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Link kopiran. Zalijepi ga u preglednik.',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.link),
+                        label: const Text(
+                          'Kopiraj link na izvor',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF122535),
+        title: const Text(
+          'FOOTBALL INTELLIGENCE AI',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.3,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () => setState(_reload),
+            icon: const Icon(
+              Icons.refresh,
+              color: kMint,
+            ),
+          ),
+        ],
+      ),
+      body: tab == 3
+          ? _newsBody()
+          : _leagueBody(),
+
+      bottomNavigationBar: NavigationBar(
+        backgroundColor: const Color(0xFF122535),
+        selectedIndex: tab,
+        onDestinationSelected: (index) {
+          setState(() {
+            tab = index;
+          });
+        },
+        indicatorColor: const Color(0xFF1C5C46),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            label: 'Početna',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_awesome),
+            label: 'Analize',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart),
+            label: 'Statistika',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.article_outlined),
+            label: 'Vijesti',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MatchDetailPage extends StatelessWidget {
+  final Map<String, dynamic> match;
+  final String league;
+
+  const MatchDetailPage({
+    super.key,
+    required this.match,
+    required this.league,
+  });
+
+  Widget _bar(
+    String title,
+    dynamic value,
+  ) {
+    final numeric =
+        value is num ? value.toDouble() : 0.0;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(title),
+              ),
+              Text(
+                percent(value),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: kMint,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          LinearProgressIndicator(
+            value: (numeric / 100)
+                .clamp(0.0, 1.0)
+                .toDouble(),
+            minHeight: 8,
+            color: kMint,
+            backgroundColor:
+                const Color(0xFF345164),
+            borderRadius:
+                BorderRadius.circular(9),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statLine(
+    String title,
+    dynamic a,
+    dynamic b,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 8,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(
+              '$a',
+              style: const TextStyle(
+                color: kMint,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: kSoft,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 70,
+            child: Text(
+              '$b',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: kMint,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _form(
+    String name,
+    Map<String, dynamic> stats,
+  ) {
+    final results = stats['form'] is List
+        ? stats['form'] as List
+        : [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 7),
+
+        Wrap(
+          spacing: 6,
+          children: results.map((value) {
+            final v = '$value';
+
+            final color = v == 'P'
+                ? kMint
+                : (v == 'N'
+                    ? Colors.amber
+                    : Colors.redAccent);
+
+            return CircleAvatar(
+              radius: 15,
+              backgroundColor: color,
+              child: Text(
+                v,
+                style: const TextStyle(
+                  color: kBg,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prediction =
+        asMap(match['prediction']);
+
+    final result =
+        asMap(prediction['resultPercent']);
+
+    final goals =
+        asMap(prediction['overGoalsPercent']);
+
+    final expected =
+        asMap(prediction['expectedGoals']);
+
+    final score =
+        asMap(prediction['mostLikelyScore']);
+
+    final homeStats =
+        asMap(match['homeStats']);
+
+    final awayStats =
+        asMap(match['awayStats']);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'AI analiza utakmice',
+        ),
+        backgroundColor:
+            const Color(0xFF122535),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            league,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: kMint,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 9),
+
+          Text(
+            '${match['home']}\n–\n${match['away']}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Text(
+            displayDate(match['date']),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: kSoft,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          if (prediction.isEmpty)
+            sectionCard(
+              title: 'Još nema prognoze',
+              child: const Text(
+                'Za ovaj susret još nema dovoljno statističkih podataka.',
+              ),
+            ),
+
+          if (prediction.isNotEmpty) ...[
+            sectionCard(
+              title: 'Vjerovatnoća ishoda',
+              child: Column(
+                children: [
+                  _bar(
+                    'Pobjeda domaćina (1)',
+                    result['home'],
+                  ),
+                  _bar(
+                    'Neriješeno (X)',
+                    result['draw'],
+                  ),
+                  _bar(
+                    'Pobjeda gosta (2)',
+                    result['away'],
+                  ),
+                ],
+              ),
+            ),
+
+            sectionCard(
+              title: 'Više / manje golova',
+              child: Column(
+                children: [
+                  _bar(
+                    'Više od 1,5',
+                    goals['1.5'],
+                  ),
+                  _bar(
+                    'Manje od 1,5',
+                    goals['1.5'] is num
+                        ? 100 - goals['1.5']
+                        : null,
+                  ),
+                  _bar(
+                    'Više od 2,5',
+                    goals['2.5'],
+                  ),
+                  _bar(
+                    'Manje od 2,5',
+                    goals['2.5'] is num
+                        ? 100 - goals['2.5']
+                        : null,
+                  ),
+                  _bar(
+                    'Više od 3,5',
+                    goals['3.5'],
+                  ),
+                  _bar(
+                    'Oba tima daju gol',
+                    prediction['bothTeamsScorePercent'],
+                  ),
+                ],
+              ),
+            ),
+
+            sectionCard(
+              title: 'Očekivani golovi',
+              child: Column(
+                children: [
+                  _statLine(
+                    'Očekivani golovi',
+                    number(expected['home']),
+                    number(expected['away']),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Ukupno ${number(expected['total'])}',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            sectionCard(
+              title: 'Najvjerovatniji rezultat',
+              child: Text(
+                '${score['home']} : ${score['away']}'
+                '  •  ${percent(score['percent'])}',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+
+          sectionCard(
+            title:
+                'Forma i statistika (zadnjih 5 utakmica)',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _statLine(
+                  'Prosjek postignutih',
+                  homeStats['goalsFor'] ?? '—',
+                  awayStats['goalsFor'] ?? '—',
+                ),
+                _statLine(
+                  'Prosjek primljenih',
+                  homeStats['goalsAgainst'] ?? '—',
+                  awayStats['goalsAgainst'] ?? '—',
+                ),
+                const Divider(
+                  color: Color(0xFF344B5B),
+                ),
+                _form(
+                  '${match['home']}',
+                  homeStats,
+                ),
+                const SizedBox(height: 12),
+                _form(
+                  '${match['away']}',
+                  awayStats,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'P = pobjeda  N = neriješeno  I = poraz',
+                  style: TextStyle(
+                    color: kSoft,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          Text(
+            '${prediction['confidence'] ?? 'Statistička procjena.'}\n'
+            'Brojevi nisu sigurni ishodi ni preporuka za klađenje.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: kSoft,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 }
