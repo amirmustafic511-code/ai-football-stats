@@ -2,7 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-
+import 'ai_predictions_screen.dart';
 void main() => runApp(const FootballApp());
 
 class FootballApp extends StatelessWidget {
@@ -21,7 +21,7 @@ class FootballApp extends StatelessWidget {
           scaffoldBackgroundColor: const Color(0xFF101820),
           useMaterial3: true,
         ),
-        home: const HomeScreen(),
+        home: const AiPredictionsScreen(),
       );
 }
 
