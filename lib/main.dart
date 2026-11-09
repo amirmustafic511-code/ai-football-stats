@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 
-// Football Intelligence AI - Android client v3.
+// Football Intelligence AI - Android client v4 (design 2 layout).
 // Only Flutter SDK libraries are used; no pubspec changes are required.
 // Predictions are statistical estimates, not guaranteed outcomes.
 const apiBase =
@@ -58,6 +58,12 @@ const translations = <String, Map<String, String>>{
     'noPrediction': 'Not enough historical data for this estimate.',
     'selectLang': 'Language', 'cancelled': 'Cancelled',
     'attribution': 'Match data: Football-Data.org',
+    'featured': 'FEATURED AI MATCH', 'overview': 'League overview',
+    'shortcutAI': 'AI analysis', 'shortcutStats': 'Statistics',
+    'shortcutNews': 'News', 'viewAll': 'All upcoming fixtures',
+    'goalsOver': 'Over 2.5', 'topMatches': 'Next fixtures',
+    'noNews': 'News source is not connected yet',
+
   },
   'bs': {
     'home': 'Početna', 'ai': 'AI Prognoze', 'stats': 'Statistika',
@@ -83,6 +89,12 @@ const translations = <String, Map<String, String>>{
     'noPrediction': 'Nema dovoljno prethodnih utakmica za procjenu.',
     'selectLang': 'Jezik', 'cancelled': 'Otkazano',
     'attribution': 'Podaci o mečevima: Football-Data.org',
+    'featured': 'ISTAKNUTA AI ANALIZA', 'overview': 'Pregled lige',
+    'shortcutAI': 'AI analize', 'shortcutStats': 'Statistika',
+    'shortcutNews': 'Vijesti', 'viewAll': 'Sve naredne utakmice',
+    'goalsOver': 'Više od 2.5', 'topMatches': 'Sljedeće utakmice',
+    'noNews': 'Izvor vijesti još nije povezan',
+
   },
 };
 
@@ -241,27 +253,31 @@ class _DashboardState extends State<Dashboard> {
       );
 
   Widget _leagues() => SizedBox(
-        height: 53,
+        height: 52,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 15),
+          padding: const EdgeInsets.fromLTRB(14, 3, 14, 3),
           itemCount: leagues.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, __) => const SizedBox(width: 7),
           itemBuilder: (context, i) {
             final l = leagues[i];
             final active = league == l.code;
             return ChoiceChip(
+              avatar: active ? const Icon(Icons.check, size: 15, color: navy) : null,
               label: Text(l.name),
               selected: active,
               onSelected: (_) => _setLeague(l.code),
               backgroundColor: surface,
               selectedColor: mint,
+              padding: const EdgeInsets.symmetric(horizontal: 5),
               labelStyle: TextStyle(
+                fontSize: 12,
                 color: active ? navy : Colors.white,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(15),
+                side: BorderSide(color: active ? mint : cardBorder),
               ),
             );
           },
@@ -296,7 +312,9 @@ class _DashboardState extends State<Dashboard> {
       );
 
   Widget _fixturesPage() => Column(children: [
+        const SizedBox(height: 7),
         _leagues(),
+        const SizedBox(height: 9),
         Expanded(
           child: FutureBuilder<Map<String, dynamic>>(
             future: fixturesFuture,
@@ -305,34 +323,125 @@ class _DashboardState extends State<Dashboard> {
               if (!snap.hasData) return _loading();
               final data = snap.data!;
               final matches = asObjects(data['matches']);
+              final leagueName = leagues.firstWhere((l) => l.code == league).name;
               return RefreshIndicator(
                 color: mint,
                 onRefresh: _refresh,
-                child: ListView(padding: const EdgeInsets.all(15), children: [
-                  _leagueHero(data, matches.length),
-                  const SizedBox(height: 22),
-                  _head(tr(widget.language, 'upcoming'),
-                      '${matches.length} ${tr(widget.language, 'matches')}'),
-                  if (matches.isEmpty)
-                    Panel(child: Text(tr(widget.language, 'noGames'))),
-                  for (final m in matches)
-                    MatchTile(
-                      match: m,
-                      language: widget.language,
-                      onTap: () => _openMatch(m),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 20),
+                  children: [
+                    if (matches.isNotEmpty)
+                      SpotlightCard(
+                        match: matches.first,
+                        league: leagueName,
+                        language: widget.language,
+                        onTap: () => _openMatch(matches.first),
+                      )
+                    else
+                      Panel(child: Text(tr(widget.language, 'noGames'))),
+                    const SizedBox(height: 11),
+                    _quickAccess(),
+                    const SizedBox(height: 12),
+                    _leagueInfoStrip(data, matches.length, leagueName),
+                    const SizedBox(height: 13),
+                    _head(tr(widget.language, 'upcoming'),
+                        '${matches.length} ${tr(widget.language, 'matches')}'),
+                    for (final m in matches.skip(matches.isEmpty ? 0 : 1))
+                      CompactFixtureCard(
+                        match: m,
+                        language: widget.language,
+                        onTap: () => _openMatch(m),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Text(tr(widget.language, 'attribution'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: muted, fontSize: 11)),
                     ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    child: Text(tr(widget.language, 'attribution'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: muted, fontSize: 11)),
-                  ),
-                ]),
+                  ],
+                ),
               );
             },
           ),
         ),
       ]);
+
+  Widget _quickAccess() {
+    final labels = [
+      tr(widget.language, 'shortcutAI'),
+      tr(widget.language, 'shortcutStats'),
+      tr(widget.language, 'shortcutNews'),
+    ];
+    final icons = [Icons.psychology_alt_outlined, Icons.query_stats,
+      Icons.newspaper_outlined];
+    return Row(children: [
+      for (var i = 0; i < labels.length; i++) ...[
+        if (i != 0) const SizedBox(width: 7),
+        Expanded(
+          child: Material(
+            color: const Color(0xFF12362F),
+            borderRadius: BorderRadius.circular(15),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(15),
+              onTap: () => setState(() => tab = i + 1),
+              child: Container(
+                height: 83,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFF2A665A)),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icons[i], color: mint, size: 24),
+                    const SizedBox(height: 6),
+                    Text(labels[i], textAlign: TextAlign.center,
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700,
+                        fontSize: 11, height: 1.1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ]);
+  }
+
+  Widget _leagueInfoStrip(
+    Map<String, dynamic> data, int count, String leagueName,
+  ) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF14473A), Color(0xFF12283B)],
+      ),
+      borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: const Color(0xFF327461)),
+    ),
+    child: Row(children: [
+      const Icon(Icons.shield_outlined, color: mint, size: 28),
+      const SizedBox(width: 9),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(leagueName, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+          Text('${data['finishedMatches'] ?? 0} ${tr(widget.language, 'analyzed')}',
+            maxLines: 2, style: const TextStyle(color: muted, fontSize: 10)),
+        ],
+      )),
+      Container(width: 1, height: 29, color: cardBorder),
+      const SizedBox(width: 12),
+      Column(children: [
+        Text('$count', style: const TextStyle(color: mint,
+            fontWeight: FontWeight.w900, fontSize: 22)),
+        Text(tr(widget.language, 'matches'),
+          style: const TextStyle(color: muted, fontSize: 10)),
+      ]),
+    ]),
+  );
 
   Widget _leagueHero(Map<String, dynamic> data, int count) => Container(
         padding: const EdgeInsets.all(22),
@@ -626,7 +735,7 @@ class _DashboardState extends State<Dashboard> {
   Widget build(BuildContext context) {
     final labels = [
       tr(widget.language, 'home'),
-      tr(widget.language, 'ai'),
+      'AI',
       tr(widget.language, 'stats'),
       tr(widget.language, 'news'),
     ];
@@ -639,21 +748,39 @@ class _DashboardState extends State<Dashboard> {
                 : _newsPage();
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('FOOTBALL INTELLIGENCE',
-                style: TextStyle(fontSize: 15,
-                    fontWeight: FontWeight.w900)),
-            Text('AI MATCH CENTER',
-                style: TextStyle(fontSize: 10, color: mint,
-                    letterSpacing: 2)),
-          ],
-        ),
+        toolbarHeight: 76,
+        titleSpacing: 12,
+        title: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D4E3D),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: mint.withOpacity(.6)),
+            ),
+            child: const Icon(Icons.sports_soccer, color: mint, size: 29),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('FOOTBALL', maxLines: 1,
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16,
+                  height: 1.05)),
+              Text('INTELLIGENCE AI', maxLines: 1,
+                style: TextStyle(fontWeight: FontWeight.w900, color: mint,
+                  fontSize: 12, height: 1.15)),
+              SizedBox(height: 3),
+              Text('AI MATCH CENTER',
+                style: TextStyle(fontSize: 9, color: muted,
+                  letterSpacing: 1.2)),
+            ],
+          )),
+        ]),
         actions: [
           PopupMenuButton<String>(
             tooltip: tr(widget.language, 'selectLang'),
-            icon: const Icon(Icons.language, color: mint),
+            icon: const Icon(Icons.language, color: mint, size: 23),
             onSelected: widget.onLanguageChanged,
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'en', child: Text('🇬🇧 English')),
@@ -663,7 +790,7 @@ class _DashboardState extends State<Dashboard> {
           IconButton(
             tooltip: tr(widget.language, 'retry'),
             onPressed: _refresh,
-            icon: const Icon(Icons.refresh, color: mint),
+            icon: const Icon(Icons.refresh, color: mint, size: 24),
           ),
         ],
       ),
@@ -688,6 +815,286 @@ class _DashboardState extends State<Dashboard> {
               selectedIcon: const Icon(Icons.newspaper, color: mint),
               label: labels[3]),
         ],
+      ),
+    );
+  }
+}
+
+class SpotlightCard extends StatelessWidget {
+  final Map<String, dynamic> match;
+  final String league;
+  final String language;
+  final VoidCallback onTap;
+  const SpotlightCard({super.key, required this.match,
+    required this.league, required this.language, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final prediction = asObject(match['prediction']);
+    final result = asObject(prediction['resultPercent']);
+    final goals = asObject(prediction['overGoalsPercent']);
+    final expected = asObject(prediction['expectedGoals']);
+    final home = '${match['home'] ?? '—'}';
+    final away = '${match['away'] ?? '—'}';
+    final a = (asNumber(result['home']) ?? 0).toDouble();
+    final b = (asNumber(result['draw']) ?? 0).toDouble();
+    final c = (asNumber(result['away']) ?? 0).toDouble();
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(23),
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [Color(0xFF153C46), Color(0xFF071A2A), Color(0xFF0C3F36)],
+            ),
+            borderRadius: BorderRadius.circular(23),
+            border: Border.all(color: const Color(0xFF2C9F7A), width: 1.2),
+            boxShadow: [BoxShadow(color: mint.withOpacity(.09),
+              blurRadius: 20, offset: const Offset(0, 5))],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Stack(children: [
+              const Positioned.fill(child: CustomPaint(
+                painter: StadiumPatternPainter())),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(15, 15, 15, 17),
+                child: Column(children: [
+                  Row(children: [
+                    Expanded(child: Text('$league  •  ${formattedDate(match['date'])}',
+                      maxLines: 2,
+                      style: const TextStyle(color: muted, fontSize: 11,
+                        fontWeight: FontWeight.w600))),
+                    const SizedBox(width: 8),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF104535),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: mint),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.memory, color: mint, size: 13),
+                          SizedBox(width: 4),
+                          Text('AI', style: TextStyle(color: mint,
+                            fontSize: 11, fontWeight: FontWeight.w900)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Expanded(child: _team(home, '${match['homeCrest'] ?? ''}')),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 5),
+                      child: Text('VS', style: TextStyle(color: mint,
+                        fontSize: 22, fontWeight: FontWeight.w900)),
+                    ),
+                    Expanded(child: _team(away, '${match['awayCrest'] ?? ''}')),
+                  ]),
+                  const SizedBox(height: 17),
+                  Container(height: 1, color: Colors.white12),
+                  const SizedBox(height: 13),
+                  Row(children: [
+                    Expanded(child: _prob('1', result['home'], mint)),
+                    Expanded(child: _prob('X', result['draw'], yellow)),
+                    Expanded(child: _prob('2', result['away'], blue)),
+                  ]),
+                  const SizedBox(height: 10),
+                  ProbabilityBar(home: a, draw: b, away: c, height: 10),
+                  const SizedBox(height: 17),
+                  Row(children: [
+                    Expanded(child: _miniStat(Icons.sports_soccer,
+                      tr(language, 'goalsOver'), percent(goals['2.5']))),
+                    const SizedBox(width: 5),
+                    Expanded(child: _miniStat(Icons.groups_2_outlined,
+                      'BTTS', percent(prediction['bothTeamsScorePercent']))),
+                    const SizedBox(width: 5),
+                    Expanded(child: _miniStat(Icons.bar_chart,
+                      'xG', decimal(expected['total']))),
+                  ]),
+                  const SizedBox(height: 14),
+                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    Text(tr(language, 'details'),
+                      style: const TextStyle(color: mint,
+                        fontSize: 12, fontWeight: FontWeight.w800)),
+                    const Icon(Icons.chevron_right, color: mint, size: 20),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _team(String name, String crest) => Column(children: [
+    TeamBadge(name: name, imageUrl: crest),
+    const SizedBox(height: 10),
+    Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center, softWrap: true,
+      style: const TextStyle(fontWeight: FontWeight.w900,
+        fontSize: 13, height: 1.2)),
+  ]);
+
+  Widget _prob(String tag, dynamic value, Color color) => Column(children: [
+    Text(tag, style: const TextStyle(color: muted, fontSize: 11)),
+    const SizedBox(height: 3),
+    Text(percent(value), style: TextStyle(fontSize: 25,
+      color: color, fontWeight: FontWeight.w900)),
+  ]);
+
+  Widget _miniStat(IconData icon, String label, String value) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 3),
+    decoration: BoxDecoration(
+      color: const Color(0xD0112C35),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFF32665D)),
+    ),
+    child: Column(children: [
+      Icon(icon, size: 18, color: mint),
+      const SizedBox(height: 4),
+      Text(label, textAlign: TextAlign.center,
+        maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: muted, fontSize: 10)),
+      Text(value, style: const TextStyle(color: mint,
+        fontSize: 16, fontWeight: FontWeight.w900)),
+    ]),
+  );
+}
+
+class StadiumPatternPainter extends CustomPainter {
+  const StadiumPatternPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outline = Paint()
+      ..color = const Color(0x3353FBC4)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+    canvas.drawOval(Rect.fromCenter(
+      center: Offset(size.width / 2, size.height * .51),
+      width: size.width * 1.35, height: size.height * .43), outline);
+    canvas.drawOval(Rect.fromCenter(
+      center: Offset(size.width / 2, size.height * .49),
+      width: size.width * 1.11, height: size.height * .29), outline);
+    final paint = Paint()..color = const Color(0x2654DDB2)
+      ..strokeWidth = 1.0;
+    for (var i = 0; i < 17; i++) {
+      final x = size.width * i / 16;
+      canvas.drawLine(Offset(x, size.height * .36),
+        Offset(size.width / 2 + (x - size.width/2) * .55,
+          size.height * .64), paint);
+    }
+    final shine = Paint()
+      ..shader = RadialGradient(
+        colors: [mint.withOpacity(.20), Colors.transparent],
+      ).createShader(Rect.fromLTWH(size.width * .4, 0,
+        size.width * .6, size.height * .55));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), shine);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class ProbabilityBar extends StatelessWidget {
+  final double home, draw, away;
+  final double height;
+  const ProbabilityBar({super.key,
+    required this.home, required this.draw, required this.away,
+    this.height = 8});
+  @override
+  Widget build(BuildContext context) {
+    final total = home + draw + away;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Row(children: [
+        Expanded(flex: total == 0 ? 1 : (home * 10).round().clamp(1, 1000).toInt(),
+          child: Container(height: height, color: mint)),
+        Expanded(flex: total == 0 ? 1 : (draw * 10).round().clamp(1, 1000).toInt(),
+          child: Container(height: height, color: yellow)),
+        Expanded(flex: total == 0 ? 1 : (away * 10).round().clamp(1, 1000).toInt(),
+          child: Container(height: height, color: blue)),
+      ]),
+    );
+  }
+}
+
+class CompactFixtureCard extends StatelessWidget {
+  final Map<String, dynamic> match;
+  final String language;
+  final VoidCallback onTap;
+  const CompactFixtureCard({super.key,
+    required this.match, required this.language, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = asObject(match['prediction']);
+    final results = asObject(p['resultPercent']);
+    final home = '${match['home'] ?? '—'}';
+    final away = '${match['away'] ?? '—'}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Material(
+        color: surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            decoration: BoxDecoration(
+              border: Border.all(color: cardBorder),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(children: [
+              Row(children: [
+                const Icon(Icons.calendar_today_outlined,
+                  size: 13, color: mint),
+                const SizedBox(width: 5),
+                Text(formattedDate(match['date']),
+                  style: const TextStyle(color: muted, fontSize: 11)),
+                const Spacer(),
+                const Icon(Icons.chevron_right, size: 20, color: mint),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                SizedBox(width: 32, height: 32,
+                  child: FittedBox(child: TeamBadge(name: home,
+                    imageUrl: '${match['homeCrest'] ?? ''}'))),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(home, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text(away, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w800)),
+                  ],
+                )),
+                const SizedBox(width: 9),
+                Column(crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('1   ${percent(results['home'])}',
+                      style: const TextStyle(color: mint,
+                        fontWeight: FontWeight.w800, fontSize: 12)),
+                    Text('X   ${percent(results['draw'])}',
+                      style: const TextStyle(color: yellow, fontSize: 11)),
+                    Text('2   ${percent(results['away'])}',
+                      style: const TextStyle(color: blue, fontSize: 11)),
+                  ],
+                ),
+              ]),
+            ]),
+          ),
+        ),
       ),
     );
   }
