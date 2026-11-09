@@ -443,39 +443,6 @@ class _DashboardState extends State<Dashboard> {
     ]),
   );
 
-  Widget _leagueHero(Map<String, dynamic> data, int count) => Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF185744), Color(0xFF10233A)],
-          ),
-          border: Border.all(color: const Color(0xFF326452)),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.auto_awesome, color: mint, size: 18),
-            SizedBox(width: 8),
-            Text('FOOTBALL INTELLIGENCE AI',
-                style: TextStyle(
-                    color: mint, fontSize: 11, fontWeight: FontWeight.w900)),
-          ]),
-          const SizedBox(height: 17),
-          Text(leagues.firstWhere((l) => l.code == league).name,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 26)),
-          const SizedBox(height: 8),
-          Text('$count ${tr(widget.language, 'matches')}  •  '
-              '${data['finishedMatches'] ?? 0} ${tr(widget.language, 'analyzed')}',
-              style: const TextStyle(color: muted, fontSize: 12)),
-          const SizedBox(height: 10),
-          Text('${tr(widget.language, 'updated')}: '
-              '${formattedDate(data['updatedAt'])}',
-              style: const TextStyle(color: mint, fontSize: 12)),
-        ]),
-      );
-
   void _openMatch(Map<String, dynamic> match) => Navigator.push(
         context,
         MaterialPageRoute<void>(
@@ -756,7 +723,7 @@ class _DashboardState extends State<Dashboard> {
             decoration: BoxDecoration(
               color: const Color(0xFF0D4E3D),
               borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: mint.withOpacity(.6)),
+              border: Border.all(color: mint.withValues(alpha: .6)),
             ),
             child: const Icon(Icons.sports_soccer, color: mint, size: 29),
           ),
@@ -852,7 +819,7 @@ class SpotlightCard extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(23),
             border: Border.all(color: const Color(0xFF2C9F7A), width: 1.2),
-            boxShadow: [BoxShadow(color: mint.withOpacity(.09),
+            boxShadow: [BoxShadow(color: mint.withValues(alpha: .09),
               blurRadius: 20, offset: const Offset(0, 5))],
           ),
           child: ClipRRect(
@@ -992,7 +959,7 @@ class StadiumPatternPainter extends CustomPainter {
     }
     final shine = Paint()
       ..shader = RadialGradient(
-        colors: [mint.withOpacity(.20), Colors.transparent],
+        colors: [mint.withValues(alpha: .20), Colors.transparent],
       ).createShader(Rect.fromLTWH(size.width * .4, 0,
         size.width * .6, size.height * .55));
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), shine);
