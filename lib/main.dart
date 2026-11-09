@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Football Intelligence AI - Android client v4 (design 2 layout).
 // Only Flutter SDK libraries are used; no pubspec changes are required.
@@ -15,6 +16,49 @@ const mint = Color(0xFF37E6A0);
 const muted = Color(0xFFAFC1D0);
 const yellow = Color(0xFFF3C66E);
 const blue = Color(0xFF74B8FF);
+
+
+/// Fallback graphic created by the app; not a photo of a real article.
+class FootballNewsArtwork extends StatelessWidget {
+  const FootballNewsArtwork({super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF103E39), Color(0xFF13253E), Color(0xFF081A29)],
+          ),
+        ),
+        child: Stack(children: [
+          Positioned.fill(child: CustomPaint(painter: _PitchPainter())),
+          const Center(child: Icon(Icons.sports_soccer,
+            color: Color(0xBB4CEAB6), size: 77)),
+          const Positioned(left: 14, bottom: 12,
+            child: Text('FOOTBALL INTELLIGENCE • NEWS',
+              style: TextStyle(fontSize: 10, color: Colors.white70,
+                fontWeight: FontWeight.w700, letterSpacing: 1.1))),
+        ]),
+      );
+}
+
+class _PitchPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = const Color(0x4464E4B4)
+      ..strokeWidth = 1..style = PaintingStyle.stroke;
+    final r = Rect.fromLTWH(size.width * .08, size.height * .12,
+      size.width * .84, size.height * .76);
+    canvas.drawRect(r, p);
+    canvas.drawLine(Offset(size.width * .5, r.top),
+      Offset(size.width * .5, r.bottom), p);
+    canvas.drawCircle(Offset(size.width * .5, size.height * .5),
+      size.height * .2, p);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
 class League {
   final String code;
@@ -63,6 +107,10 @@ const translations = <String, Map<String, String>>{
     'shortcutNews': 'News', 'viewAll': 'All upcoming fixtures',
     'goalsOver': 'Over 2.5', 'topMatches': 'Next fixtures',
     'noNews': 'News source is not connected yet',
+    'newsRegional': 'Bosnian is not available in the provider. Showing original Croatian-language articles.',
+    'newsEnglish': 'Original English-language articles. They are not automatically translated.',
+    'linkCopy': 'Copy article link', 'linkCopied': 'Article link copied. Open it in your browser.',
+    'illustration': 'Illustrative sports graphic',
 
   },
   'bs': {
@@ -94,6 +142,10 @@ const translations = <String, Map<String, String>>{
     'shortcutNews': 'Vijesti', 'viewAll': 'Sve naredne utakmice',
     'goalsOver': 'Više od 2.5', 'topMatches': 'Sljedeće utakmice',
     'noNews': 'Izvor vijesti još nije povezan',
+    'newsRegional': 'Izvor ne nudi bosanski jezik. Prikazujemo originalne članke na hrvatskom.',
+    'newsEnglish': 'Originalni tekstovi na engleskom; nisu automatski prevedeni.',
+    'linkCopy': 'Kopiraj link članka', 'linkCopied': 'Link kopiran. Otvori ga u pregledniku.',
+    'illustration': 'Ilustrativna sportska grafika',
 
   },
 };
@@ -204,7 +256,17 @@ class _DashboardState extends State<Dashboard> {
   void _loadAll() {
     fixturesFuture = getJson('/api/league?code=$league');
     picksFuture = getJson('/api/ai-predictions');
-    newsFuture = getJson('/api/news');
+    newsFuture = getJson('/api/news?lang=${widget.language}');
+  }
+
+  @override
+  void didUpdateWidget(covariant Dashboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.language != widget.language) {
+      setState(() {
+        newsFuture = getJson('/api/news?lang=${widget.language}');
+      });
+    }
   }
 
   Future<void> _refresh() async {
@@ -213,7 +275,7 @@ class _DashboardState extends State<Dashboard> {
         picksFuture = getJson('/api/ai-predictions');
         fixturesFuture = getJson('/api/league?code=$league');
       } else if (tab == 3) {
-        newsFuture = getJson('/api/news');
+        newsFuture = getJson('/api/news?lang=${widget.language}');
       } else {
         fixturesFuture = getJson('/api/league?code=$league');
       }
@@ -657,40 +719,100 @@ class _DashboardState extends State<Dashboard> {
         builder: (context, snap) {
           if (snap.hasError) return _error(snap.error);
           if (!snap.hasData) return _loading();
-          final articles = asObjects(snap.data!['articles']);
+          final payload = snap.data!;
+          final articles = asObjects(payload['articles']);
+          final contentLang = '${payload['contentLanguage'] ?? 'en'}';
           return RefreshIndicator(
             color: mint,
             onRefresh: _refresh,
             child: ListView(padding: const EdgeInsets.all(15), children: [
-              _head(tr(widget.language, 'newsTitle'),
-                  'Football Intelligence AI'),
+              _head(tr(widget.language, 'newsTitle'), 'Football Intelligence AI'),
+              Panel(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(children: [
+                    Icon(Icons.language, size: 18, color: mint),
+                    SizedBox(width: 8),
+                    Text('Powered by Currents News API',
+                      style: TextStyle(color: mint, fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(contentLang == 'hr'
+                      ? tr(widget.language, 'newsRegional')
+                      : tr(widget.language, 'newsEnglish'),
+                    style: const TextStyle(color: muted, fontSize: 12)),
+                ],
+              )),
               if (articles.isEmpty)
                 Panel(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Icon(Icons.newspaper_outlined, color: mint, size: 32),
                     const SizedBox(height: 12),
-                    Text(tr(widget.language, 'newsMissing'),
-                        style: const TextStyle(fontWeight: FontWeight.w900,
-                            fontSize: 18)),
-                    const SizedBox(height: 10),
-                    Text(tr(widget.language, 'newsInfo'),
-                        style: const TextStyle(color: muted)),
+                    Text('${payload['message'] ?? tr(widget.language, 'newsMissing')}',
+                      style: const TextStyle(fontWeight: FontWeight.w900,
+                        fontSize: 18)),
                   ],
                 )),
               for (final a in articles)
                 Panel(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // A football illustration is shown when the publisher does
+                    // not supply an image. Images in a public release must be
+                    // reviewed for publisher usage rights.
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 156,
+                        child: Builder(builder: (_) {
+                          final image = '${a['imageUrl'] ?? ''}';
+                          if (!image.startsWith('https://')) {
+                            return const FootballNewsArtwork();
+                          }
+                          return Image.network(
+                            image,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                              const FootballNewsArtwork(),
+                            loadingBuilder: (context, child, progress) =>
+                              progress == null ? child : const FootballNewsArtwork(),
+                          );
+                        }),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Text('${a['title'] ?? ''}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 17)),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900, fontSize: 17)),
                     const SizedBox(height: 8),
                     Text('${a['description'] ?? ''}',
-                        style: const TextStyle(color: muted)),
-                    const SizedBox(height: 8),
-                    Text(formattedDate(a['publishedAt']),
-                        style: const TextStyle(color: mint, fontSize: 11)),
+                      style: const TextStyle(color: muted)),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(child: Text('${a['source'] ?? ''}',
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: mint, fontSize: 11))),
+                      Text(formattedDate(a['publishedAt']),
+                        style: const TextStyle(color: muted, fontSize: 11)),
+                    ]),
+                    const SizedBox(height: 6),
+                    Align(alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.link, size: 16),
+                        label: Text(tr(widget.language, 'linkCopy')),
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: '${a['url'] ?? ''}'));
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(
+                              tr(widget.language, 'linkCopied'))));
+                        },
+                      ),
+                    ),
                   ],
                 )),
             ]),
