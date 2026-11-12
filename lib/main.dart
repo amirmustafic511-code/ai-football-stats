@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use, unused_element
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -925,36 +926,6 @@ class _DashboardState extends State<Dashboard> {
       ]),
     );
   }
-
-  Widget _previewFromFixtures() => FutureBuilder<Map<String, dynamic>>(
-        future: fixturesFuture,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const SizedBox.shrink();
-          final matches = asObjects(snapshot.data!['matches'])
-              .where((m) => asObject(m['prediction']).isNotEmpty)
-              .toList();
-          matches.sort((a, b) {
-            num top(Map<String, dynamic> m) {
-              final p = asObject(asObject(m['prediction'])['resultPercent']);
-              final numbers = [p['home'], p['draw'], p['away']]
-                  .map(asNumber).whereType<num>().toList();
-              numbers.sort((x, y) => y.compareTo(x));
-              return numbers.isEmpty ? 0 : numbers.first;
-            }
-            return top(b).compareTo(top(a));
-          });
-          if (matches.isEmpty) return const SizedBox.shrink();
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _head(tr(widget.language, 'preview'),
-                tr(widget.language, 'previewInfo')),
-            for (final m in matches.take(5)) MatchTile(
-              match: m,
-              language: widget.language,
-              onTap: () => _openMatch(m),
-            ),
-          ]);
-        },
-      );
 
   Widget _statsPage() => Column(children: [
         _leagues(),
