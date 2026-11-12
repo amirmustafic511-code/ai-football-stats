@@ -801,6 +801,16 @@ class _DashboardState extends State<Dashboard> {
           if (!snap.hasData) return _loading();
           final data = snap.data!;
           final records = asObjects(data['matches']);
+          final today = '${data['today'] ?? ''}';
+          final todayPicks = asObjects(data['todayMatches']);
+          final currentPicks = todayPicks.isNotEmpty
+              ? todayPicks
+              : records.where((p) => '${p['prediction_day'] ?? ''}' == today).toList();
+          final previousPicks = records
+              .where((p) => '${p['prediction_day'] ?? ''}' != today).toList();
+          final archiveDates = previousPicks
+              .map((p) => '${p['prediction_day'] ?? ''}')
+              .toSet().toList()..sort((a, b) => b.compareTo(a));
           final won = asNumber(data['won'])?.toInt() ?? 0;
           final lost = asNumber(data['lost'])?.toInt() ?? 0;
           final pending = asNumber(data['pending'])?.toInt() ?? 0;
@@ -832,13 +842,31 @@ class _DashboardState extends State<Dashboard> {
                     style: const TextStyle(
                         color: mint, fontSize: 25, fontWeight: FontWeight.w900)),
               ])),
-              _head(tr(widget.language, 'picks'),
-                  '${records.length} ${tr(widget.language, 'matches')}'),
-              if (records.isEmpty)
-                Panel(child: Text(tr(widget.language, 'noPicks'),
+              _head(widget.language == 'bs' ? 'Današnje AI prognoze' : "Today's AI predictions",
+                  today.isEmpty ? '—' : today),
+              if (currentPicks.isEmpty)
+                Panel(child: Text(widget.language == 'bs'
+                    ? 'Za danas još nema objavljenih prognoza. AI ne dodaje utakmice bez dovoljno podataka.'
+                    : 'No predictions published for today yet. Matches are not forced without sufficient data.',
                     style: const TextStyle(color: muted))),
-              for (final pick in records) _pickTile(pick),
-              if (records.isEmpty) _previewFromFixtures(),
+              for (final pick in currentPicks) _pickTile(pick),
+              _head(widget.language == 'bs' ? 'Prethodni dani i rezultati' : 'Previous days and results',
+                  '${previousPicks.length} ${tr(widget.language, 'matches')}'),
+              if (previousPicks.isEmpty)
+                Panel(child: Text(widget.language == 'bs'
+                    ? 'Još nema prethodnih objavljenih prognoza.'
+                    : 'No previously published predictions yet.',
+                    style: const TextStyle(color: muted))),
+              for (final date in archiveDates) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 7),
+                  child: Text(date,
+                    style: const TextStyle(color: mint, fontWeight: FontWeight.w800)),
+                ),
+                for (final pick in previousPicks.where(
+                    (p) => '${p['prediction_day'] ?? ''}' == date))
+                  _pickTile(pick),
+              ],
               const SizedBox(height: 8),
               Text(tr(widget.language, 'info'),
                   textAlign: TextAlign.center,
